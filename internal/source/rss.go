@@ -2,24 +2,18 @@ package source
 
 import (
 	"context"
-	"fmt"
+	"strings"
+
 	"github.com/SlyMarbo/rss"
 	"github.com/samber/lo"
-	"news-feed-bot/internal/model"
+
+	"volleyvalkybot/internal/model"
 )
 
 type RSSSource struct {
 	URL        string
 	SourceID   int64
 	SourceName string
-}
-
-func (s RSSSource) ID() int64 {
-	return s.SourceID
-}
-
-func (s RSSSource) Name() string {
-	return s.SourceName
 }
 
 func NewRSSSourceFromModel(m model.Source) RSSSource {
@@ -33,18 +27,27 @@ func NewRSSSourceFromModel(m model.Source) RSSSource {
 func (s RSSSource) Fetch(ctx context.Context) ([]model.Item, error) {
 	feed, err := s.loadFeed(ctx, s.URL)
 	if err != nil {
-		return nil, fmt.Errorf("can't load feed %w", err)
+		return nil, err
 	}
+
 	return lo.Map(feed.Items, func(item *rss.Item, _ int) model.Item {
 		return model.Item{
 			Title:      item.Title,
 			Categories: item.Categories,
 			Link:       item.Link,
 			Date:       item.Date,
-			Summary:    item.Summary,
 			SourceName: s.SourceName,
+			Summary:    strings.TrimSpace(item.Summary),
 		}
 	}), nil
+}
+
+func (s RSSSource) ID() int64 {
+	return s.SourceID
+}
+
+func (s RSSSource) Name() string {
+	return s.SourceName
 }
 
 func (s RSSSource) loadFeed(ctx context.Context, url string) (*rss.Feed, error) {
@@ -52,6 +55,7 @@ func (s RSSSource) loadFeed(ctx context.Context, url string) (*rss.Feed, error) 
 		feedCh = make(chan *rss.Feed)
 		errCh  = make(chan error)
 	)
+
 	go func() {
 		feed, err := rss.Fetch(url)
 		if err != nil {

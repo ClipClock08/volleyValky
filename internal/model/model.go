@@ -1,6 +1,8 @@
 package model
 
-import "time"
+import (
+	"time"
+)
 
 type Item struct {
 	Title      string
@@ -31,39 +33,48 @@ type Article struct {
 }
 
 type Season struct {
-	ID      int64
-	Name    string
-	Teams   []Team
-	ScoreID int64
+	SeasonID    int64
+	StartDate   time.Time
+	EndDate     time.Time
+	Description string
+}
+
+type Player struct {
+	ID       int64
+	TeamID   int64
+	Name     string
+	Lastname string
+	Surname  string
+	Born     time.Time
+	Position string
+	Number   uint8
+	Photo    string
+}
+
+type Coach struct {
+	ID       int64
+	Name     string
+	Lastname string
+	Surname  string
 }
 
 type Team struct {
 	ID      int64
 	Name    string
+	Since   time.Time
+	CoachID int64
 	Players []Player
 }
 
-type Player struct {
-	ID        int64
-	Name      string
-	Surname   string
-	Lastname  string
-	Photo     string
-	BirthDate time.Time
-	Role      Role
-	Number    int
+type Match struct {
 }
 
-type Role struct {
-	ID   int64
-	Role string
+type MatchResults struct {
 }
 
-type Score struct {
-	ID         int64
-	SeasonID   int64
-	Team1ID    int64
-	Team2ID    int64
-	ScoreTeam1 int8
-	ScoreTeam2 int8
+type Result struct {
+	Season  int64
+	Teams   []Team
+	Matches []Match
+	Results []MatchResults
 }

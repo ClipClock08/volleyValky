@@ -2,16 +2,20 @@ package storage
 
 import (
 	"context"
-	"github.com/samber/lo"
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/samber/lo"
 
-	"news-feed-bot/internal/model"
+	"volleyvalkybot/internal/model"
 )
 
 type SourcePostgresStorage struct {
 	db *sqlx.DB
+}
+
+func NewSourceStorage(db *sqlx.DB) *SourcePostgresStorage {
+	return &SourcePostgresStorage{db: db}
 }
 
 func (s *SourcePostgresStorage) Sources(ctx context.Context) ([]model.Source, error) {
@@ -19,7 +23,6 @@ func (s *SourcePostgresStorage) Sources(ctx context.Context) ([]model.Source, er
 	if err != nil {
 		return nil, err
 	}
-
 	defer func() { _ = conn.Close() }()
 
 	var sources []dbSource
@@ -35,13 +38,13 @@ func (s *SourcePostgresStorage) SourceByID(ctx context.Context, id int64) (*mode
 	if err != nil {
 		return nil, err
 	}
-
 	defer func() { _ = conn.Close() }()
 
 	var source dbSource
-	if err := conn.SelectContext(ctx, &source, `SELECT * FROM sources WHERE id=$1`, id); err != nil {
+	if err := conn.GetContext(ctx, &source, `SELECT * FROM sources WHERE id = $1`, id); err != nil {
 		return nil, err
 	}
+
 	return (*model.Source)(&source), nil
 }
 
@@ -50,20 +53,21 @@ func (s *SourcePostgresStorage) Add(ctx context.Context, source model.Source) (i
 	if err != nil {
 		return 0, err
 	}
-
 	defer func() { _ = conn.Close() }()
 
 	var id int64
+
 	row := conn.QueryRowxContext(
 		ctx,
-		`INSERT INTO sources (name, feed_url, create_at) VAL UES ($1, $2, $3) RETURNING id`,
-		source.Name,
-		source.FeedURL,
-		source.CreatedAt,
+		`INSERT INTO sources (name, feed_url, priority)
+					VALUES ($1, $2, $3) RETURNING id;`,
+		source.Name, source.FeedURL, source.Priority,
 	)
+
 	if err := row.Err(); err != nil {
 		return 0, err
 	}
+
 	if err := row.Scan(&id); err != nil {
 		return 0, err
 	}
@@ -71,15 +75,26 @@ func (s *SourcePostgresStorage) Add(ctx context.Context, source model.Source) (i
 	return id, nil
 }
 
+func (s *SourcePostgresStorage) SetPriority(ctx context.Context, id int64, priority int) error {
+	conn, err := s.db.Connx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close() }()
+
+	_, err = conn.ExecContext(ctx, `UPDATE sources SET priority = $1 WHERE id = $2`, priority, id)
+
+	return err
+}
+
 func (s *SourcePostgresStorage) Delete(ctx context.Context, id int64) error {
 	conn, err := s.db.Connx(ctx)
 	if err != nil {
 		return err
 	}
-
 	defer func() { _ = conn.Close() }()
 
-	if _, err := conn.ExecContext(ctx, `DELETE FROM sources WHERE id=$1`, id); err != nil {
+	if _, err := conn.ExecContext(ctx, `DELETE FROM sources WHERE id = $1`, id); err != nil {
 		return err
 	}
 

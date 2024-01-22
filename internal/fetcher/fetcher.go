@@ -9,21 +9,21 @@ import (
 
 	"github.com/tomakado/containers/set"
 
-	"news-feed-bot/internal/model"
-	src "news-feed-bot/internal/source"
+	"volleyvalkybot/internal/model"
+	src "volleyvalkybot/internal/source"
 )
 
+//go:generate moq --out=mocks/mock_article_storage.go --pkg=mocks . ArticleStorage
 type ArticleStorage interface {
 	Store(ctx context.Context, article model.Article) error
 }
 
-type TeamsStorage interface {
-	StoreTeam(ctx context.Context, team model.Source) error
-}
-type SourceProvider interface {
+//go:generate moq --out=mocks/mock_sources_provider.go --pkg=mocks . SourcesProvider
+type SourcesProvider interface {
 	Sources(ctx context.Context) ([]model.Source, error)
 }
 
+//go:generate moq --out=mocks/mock_source.go --pkg=mocks . Source
 type Source interface {
 	ID() int64
 	Name() string
@@ -32,7 +32,7 @@ type Source interface {
 
 type Fetcher struct {
 	articles ArticleStorage
-	sources  SourceProvider
+	sources  SourcesProvider
 
 	fetchInterval  time.Duration
 	filterKeywords []string
@@ -40,15 +40,33 @@ type Fetcher struct {
 
 func New(
 	articleStorage ArticleStorage,
-	sourceProvider SourceProvider,
+	sourcesProvider SourcesProvider,
 	fetchInterval time.Duration,
-	filterKeywords []string,
 ) *Fetcher {
 	return &Fetcher{
-		articles:       articleStorage,
-		sources:        sourceProvider,
-		fetchInterval:  fetchInterval,
-		filterKeywords: filterKeywords,
+		articles:      articleStorage,
+		sources:       sourcesProvider,
+		fetchInterval: fetchInterval,
+	}
+}
+
+func (f *Fetcher) Start(ctx context.Context) error {
+	ticker := time.NewTicker(f.fetchInterval)
+	defer ticker.Stop()
+
+	if err := f.Fetch(ctx); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if err := f.Fetch(ctx); err != nil {
+				return err
+			}
+		}
 	}
 }
 
@@ -84,31 +102,12 @@ func (f *Fetcher) Fetch(ctx context.Context) error {
 	return nil
 }
 
-func (f *Fetcher) Start(ctx context.Context) error {
-	ticker := time.NewTicker(f.fetchInterval)
-	defer ticker.Stop()
-
-	if err := f.Fetch(ctx); err != nil {
-		return err
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			if err := f.Fetch(ctx); err != nil {
-				return err
-			}
-		}
-	}
-}
-
 func (f *Fetcher) processItems(ctx context.Context, source Source, items []model.Item) error {
 	for _, item := range items {
 		item.Date = item.Date.UTC()
 
 		if f.itemShouldBeSkipped(item) {
+			log.Printf("[INFO] item %q (%s) from source %q should be skipped", item.Title, item.Link, source.Name())
 			continue
 		}
 
@@ -122,16 +121,18 @@ func (f *Fetcher) processItems(ctx context.Context, source Source, items []model
 			return err
 		}
 	}
+
 	return nil
 }
 
 func (f *Fetcher) itemShouldBeSkipped(item model.Item) bool {
 	categoriesSet := set.New(item.Categories...)
+
 	for _, keyword := range f.filterKeywords {
-		titleContainKeywords := strings.Contains(strings.ToLower(item.Title), keyword)
-		if categoriesSet.Contains(keyword) || titleContainKeywords {
+		if categoriesSet.Contains(keyword) || strings.Contains(strings.ToLower(item.Title), keyword) {
 			return true
 		}
 	}
+
 	return false
 }

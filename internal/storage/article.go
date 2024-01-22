@@ -3,33 +3,34 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"time"
+
 	"github.com/jmoiron/sqlx"
 	"github.com/samber/lo"
-	"news-feed-bot/internal/model"
-	"time"
+
+	"volleyvalkybot/internal/model"
 )
 
-type ArticlesPostgresStorage struct {
+type ArticlePostgresStorage struct {
 	db *sqlx.DB
 }
 
-func NewArticleStorage(db *sqlx.DB) *ArticlesPostgresStorage {
-	return &ArticlesPostgresStorage{db: db}
+func NewArticleStorage(db *sqlx.DB) *ArticlePostgresStorage {
+	return &ArticlePostgresStorage{db: db}
 }
 
-func (s *ArticlesPostgresStorage) Store(ctx context.Context, article model.Article) error {
+func (s *ArticlePostgresStorage) Store(ctx context.Context, article model.Article) error {
 	conn, err := s.db.Connx(ctx)
 	if err != nil {
 		return err
 	}
-
 	defer func() { _ = conn.Close() }()
 
 	if _, err := conn.ExecContext(
 		ctx,
-		`INSERT INTO articles (source_id, title, link, summary, published_at) 
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT DO NOTHING`,
+		`INSERT INTO articles (source_id, title, link, summary, published_at)
+	    				VALUES ($1, $2, $3, $4, $5)
+	    				ON CONFLICT DO NOTHING;`,
 		article.SourceID,
 		article.Title,
 		article.Link,
@@ -42,15 +43,15 @@ func (s *ArticlesPostgresStorage) Store(ctx context.Context, article model.Artic
 	return nil
 }
 
-func (s *ArticlesPostgresStorage) AllNotPosted(ctx context.Context, since time.Time, limit uint64) ([]model.Article, error) {
+func (s *ArticlePostgresStorage) AllNotPosted(ctx context.Context, since time.Time, limit uint64) ([]model.Article, error) {
 	conn, err := s.db.Connx(ctx)
 	if err != nil {
 		return nil, err
 	}
-
 	defer func() { _ = conn.Close() }()
 
 	var articles []dbArticleWithPriority
+
 	if err := conn.SelectContext(
 		ctx,
 		&articles,
@@ -87,19 +88,18 @@ func (s *ArticlesPostgresStorage) AllNotPosted(ctx context.Context, since time.T
 	}), nil
 }
 
-func (s *ArticlesPostgresStorage) MarkPosted(ctx context.Context, id int64) error {
+func (s *ArticlePostgresStorage) MarkAsPosted(ctx context.Context, article model.Article) error {
 	conn, err := s.db.Connx(ctx)
 	if err != nil {
 		return err
 	}
-
 	defer func() { _ = conn.Close() }()
 
 	if _, err := conn.ExecContext(
 		ctx,
-		`UPDATE articles SET posted_at = $1::timestamp WHERE id = $2`,
+		`UPDATE articles SET posted_at = $1::timestamp WHERE id = $2;`,
 		time.Now().UTC().Format(time.RFC3339),
-		id,
+		article.ID,
 	); err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ type dbArticleWithPriority struct {
 	ID             int64          `db:"a_id"`
 	SourcePriority int64          `db:"s_priority"`
 	SourceID       int64          `db:"s_id"`
-	Title          string         `db:"a_title  "`
+	Title          string         `db:"a_title"`
 	Link           string         `db:"a_link"`
 	Summary        sql.NullString `db:"a_summary"`
 	PublishedAt    time.Time      `db:"a_published_at"`

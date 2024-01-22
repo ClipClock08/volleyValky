@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: news_feed_bot
+      POSTGRES_DB: volley_valky_bot
       PGDATA: /var/lib/postgresql/data/
     ports:
       - "5432:5432"
