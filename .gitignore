@@ -27,7 +27,9 @@ go.work
 # End of https://www.toptal.com/developers/gitignore/api/go
 
 /config.local.hcl
+config.hcl
 /bin/
 .env
 
 data
+.golangci.local.yml
