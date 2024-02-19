@@ -33,3 +33,5 @@ config.hcl
 
 data
 .golangci.local.yml
+.idea/
+node_modules/
