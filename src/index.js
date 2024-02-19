@@ -12,6 +12,7 @@ import GraphQL from "./components/GraphQL";
 import Login from "./components/Login";
 import Season from "./components/Season";
 import Team from "./components/Team";
+import { HashRouter as Router } from "react-router-dom";
 
 const router = createBrowserRouter([
     {
